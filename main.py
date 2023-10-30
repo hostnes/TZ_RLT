@@ -17,10 +17,10 @@ client = pymongo.MongoClient("mongodb://localhost:27017")
 db = client['admin']
 coll = db['coll']
 
-with open('sample_collection.bson', 'rb') as f:
-    bson_data = bson.decode_all(f.read())
-
-coll.insert_many(bson_data)
+# with open('sample_collection.bson', 'rb') as f:
+#     bson_data = bson.decode_all(f.read())
+#
+# coll.insert_many(bson_data)
 """######################################"""
 
 
@@ -38,71 +38,51 @@ async def msg(message: types.Message):
     start_date_format = "%Y-%m-%dT%H:%M:%S"
     date_format = "%Y-%m-%d %H:%M:%S"
     insert_value = eval(message.text)
-    is_valid_msg = False
-    try:
-        new_dt_from = datetime.strptime(str(datetime.strptime(insert_value['dt_from'], start_date_format)), date_format)
-        new_dt_upto = datetime.strptime(str(datetime.strptime(insert_value['dt_upto'], start_date_format)), date_format)
-        group_type = insert_value['group_type']
-        is_valid_msg = True
-    except:
-        pass
+    new_dt_from = datetime.strptime(str(datetime.strptime(insert_value['dt_from'], start_date_format)), date_format)
+    new_dt_upto = datetime.strptime(str(datetime.strptime(insert_value['dt_upto'], start_date_format)), date_format)
+    group_type = insert_value['group_type']
 
-    if is_valid_msg == True:
-        full_dates = []
-        for i in coll.find():
-            if new_dt_from <= i['dt']:
-                if i['dt'] <= new_dt_upto:
-                    full_dates.append(i)
+    full_dates = []
+    for i in coll.find():
+        if new_dt_from <= i['dt'] <= new_dt_upto:
+            full_dates.append(i)
 
-        dataset = []
-        labels = []
+    dataset = []
+    labels = []
 
-        if group_type == 'hour':
-            now = new_dt_from
-            while True:
-                res = 0
-                if now <= new_dt_upto:
-                    for i in full_dates:
-                        if i['dt'].year == now.year and i['dt'].month == now.month and i['dt'].day == now.day and i['dt'].hour == now.hour:
-                            res += i['value']
-                    dataset.append(res)
-                    labels.append(now.strftime(start_date_format))
-                    now += relativedelta(hours=1)
-                else:
-                    break
+    if group_type == 'hour':
+        now = new_dt_from
+        while now <= new_dt_upto:
+            res = 0
+            for i in full_dates:
+                if i['dt'].year == now.year and i['dt'].month == now.month and i['dt'].day == now.day and i['dt'].hour == now.hour:
+                    res += i['value']
+            dataset.append(res)
+            labels.append(now.strftime(start_date_format))
+            now += relativedelta(hours=1)
+    elif group_type == 'day':
+        now = new_dt_from
+        while now <= new_dt_upto:
+            res = 0
+            for i in full_dates:
+                if i['dt'].year == now.year and i['dt'].month == now.month and i['dt'].day == now.day:
+                    res += i['value']
+            dataset.append(res)
+            labels.append(now.strftime(start_date_format))
+            now += relativedelta(days=1)
+    elif group_type == 'month':
+        now = new_dt_from
+        while now <= new_dt_upto:
+            res = 0
+            for i in full_dates:
+                if i['dt'].year == now.year and i['dt'].month == now.month:
+                    res += i['value']
+            dataset.append(res)
+            labels.append(now.strftime(start_date_format))
+            now += relativedelta(months=1)
 
-        if group_type == 'day':
-            now = new_dt_from
-            while True:
-                res = 0
-                if now <= new_dt_upto:
-                    for i in full_dates:
-                        if i['dt'].year == now.year and i['dt'].month == now.month and i['dt'].day == now.day:
-                            res += i['value']
-                    dataset.append(res)
-                    labels.append(now.strftime(start_date_format))
-                    now += relativedelta(days=1)
-                else:
-                    break
-
-        if group_type == 'month':
-            now = new_dt_from
-            while True:
-                res = 0
-                if now <= new_dt_upto:
-                    for i in full_dates:
-                        if i['dt'].year == now.year and i['dt'].month == now.month:
-                                res += i['value']
-                    dataset.append(res)
-                    labels.append(now.strftime(start_date_format))
-                    now += relativedelta(months=1)
-                else:
-                    break
-
-        diction = json.dumps({"dataset": dataset, "labels": labels})
-        await message.answer(diction)
-    else:
-        await message.answer('что то не так')
+    diction = json.dumps({"dataset": dataset, "labels": labels})
+    await message.answer(diction)
 
 
 async def main():
